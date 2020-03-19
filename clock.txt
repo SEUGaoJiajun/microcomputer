@@ -1,0 +1,62 @@
+NAME  OUTPUT_CLOCK
+DATA  SEGMENT
+BUFFER DB 11
+             DB ?
+             DB 10 DUP(?)
+DATA ENDS
+COSEG SEGMENT
+ASSUME CS:COSEG, DS:DATA
+OUTCLK:  MOV AX,DATA
+               MOV DS,AX
+               MOV DL,':'
+               MOV AH,2
+               INT 21H
+               MOV DX, OFFSET BUFFER
+               MOV AH,10
+               INT 21H
+               MOV BX, OFFSET BUFFER+2
+               MOV AL,[BX]
+               AND AL,0FH
+               MOV [BX],AL
+               INC BX
+               MOV AL,[BX]
+               AND AL,0FH
+               MOV [BX],AL
+               INC BX
+               INC BX
+               MOV AL,[BX]
+               AND AL,0FH
+               MOV [BX],AL
+               INC BX
+               MOV AL,[BX]
+               AND AL,0FH
+               MOV [BX],AL
+               INC BX
+               INC BX
+               MOV AL,[BX]
+               AND AL,0FH
+               MOV [BX],AL
+               INC BX
+               MOV AL,[BX]
+               AND AL,0FH
+               MOV [BX],AL
+               MOV BX, OFFSET BUFFER+2
+               CALL TOBCD
+               MOV CH,AL
+               ADD BX,3
+               CALL TOBCD
+               MOV DH,AL
+               ADD BX,3
+               CALL TOBCD
+               MOV DL,AL
+AGAIN:    CALL DIS
+               MOV AL,DL
+               ADD AL,1
+               DAA
+               MOV DL,AL
+               CMP AL,60H
+               JNE DISPY
+               MOV DL,0
+               MOV AL,DH
+                                  
+ 

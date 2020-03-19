@@ -1,0 +1,146 @@
+DATA    SEGMENT
+TIME1   DB 10                   ;第一字节为预定的最大输入字符数             
+        DB ?                    ;第二字节为实际输入字符数
+        DB 10 DUP(?)
+TIME2   DB ?,?,':',?,?,':',?,?,0DH,'$'
+ERRORW  DB 0DH,0AH,'ERROR',0DH,0AH,'$'
+STORE   DB 6 DUP(?)
+SHOWN   DW 3
+FRIST   DB ':',0DH,0AH,'$'
+DATA    ENDS
+CODE    SEGMENT
+        ASSUME CS:CODE,DS:DATA
+START:  MOV AX,DATA
+        MOV DS,AX
+        LEA DX,FRIST            
+        MOV AH,9                ;功能号为9的中断为显示以$结尾的字符串，字符串首地址在DS:DX
+        INT 21H                 ;输入提示显示完毕
+        LEA DX,TIME1            ;DS:DX指向输入缓冲区
+        MOV AH,0AH
+        INT 21H                 ;时间输入完毕，在以TIME1为首单元内
+        MOV AH,[TIME1+2]        ;取小时高位，为ASCII码
+        MOV AL,[TIME1+3]        ;取小时低位，为ASCII码
+        MOV BH,[TIME1+5]        ;取分钟高位，为ASCII码，直接跳到5，因为中间有:
+        MOV BL,[TIME1+6]        ;取分钟低位，为ASCII码
+        MOV DH,[TIME1+8]        ;取秒高位，为ASCII码
+        MOV DL,[TIME1+9]        ;取秒低位，为ASCII码
+        MOV CL,4                ;设循环移位次数为4
+        SUB AH,30H              ;从ASCII码调整为非压缩型BCD码，为小时高位
+        SUB AL,30H              ;从ASCII码调整为非压缩型BCD码，为小时低位
+        ROL AH,CL               ;使AH中低4位挪至高4位
+        ADD AL,AH               ;相加后，AL为小时有效压缩BCD码
+        SUB BH,30H              ;从ASCII码调整为非压缩型BCD码，为分钟高位
+        SUB BL,30H              ;从ASCII码调整为非压缩型BCD码，为分钟低位
+        ROL BH,CL               ;使BH中低4位挪至高4位
+        ADD BL,BH               ;相加后，BL为分钟有效压缩BCD码
+        SUB DH,30H              ;从ASCII码调整为非压缩型BCD码，为秒高位
+        SUB DL,30H              ;从ASCII码调整为非压缩型BCD码，为秒低位
+        ROL DH,CL               ;使DH中低4位挪至高4位
+        ADD DL,DH               ;相加后，DL为秒有效压缩BCD码
+        PUSH AX                 ;小时进栈
+        PUSH BX                 ;分钟进栈
+        PUSH DX                 ;秒进栈
+        CMP AL,24H              ;看输入的小时，分钟，秒是否大于了最大值，如果是就报错
+        JNB BERROR
+        CMP BL,60H
+        JNB BERROR
+        CMP DL,60H
+        JNB BERROR
+        JMP NERROR
+BERROR: CALL ERROR
+        JMP EXIT
+NERROR: LEA DI,TIME2            ;取待显示的TIME2单元偏移地址
+AGAIN:  ADD DI,6                ;使DI指向秒高位
+        LEA BX,STORE            ;取STORE单元偏移地址
+        ADD BX,4                ;使BX指向秒位
+        CALL DELAY              ;调用延时过程，延时1秒
+        POP AX                  ;弹出秒    
+        ADD AL,1                ;加1秒
+        DAA                     ;压缩型BCD调整
+        PUSH AX                 ;秒进栈
+        CMP AL,60H              ;是否已经到60秒了
+        JNE SHOW                ;秒不为60则显示，为60继续运行
+        POP DX                  ;弹出秒
+        POP AX                  ;弹出分钟
+        MOV DL,0                ;秒置0
+        ADD AL,1                ;加1分钟
+        DAA                     ;压缩型BCD调整
+        PUSH AX                 ;分钟进栈
+        PUSH DX                 ;秒进栈
+        CMP AL,60H              ;是否已经到60分钟了
+        JNE SHOW                ;分钟不为60则显示，为60继续运行
+        POP DX                  ;秒出栈
+        POP BX                  ;分钟出栈
+        POP AX                  ;小时出栈
+        MOV BL,0                ;分钟置0
+        ADD AL,1                ;加1小时
+        DAA                     ;压缩型BCD调整
+        PUSH AX                 ;小时进栈
+        PUSH BX                 ;分钟进栈
+        PUSH DX                 ;秒进栈
+        CMP AL,24H              ;是否已经到24小时了
+        JNE SHOW                ;小时不为24则显示，为24继续运行
+        POP DX                  ;秒出栈
+        POP BX                  ;分钟出栈
+        POP AX                  ;小时出栈
+        MOV AL,0                ;小时置0
+        PUSH AX                 ;小时进栈
+        PUSH BX                 ;分钟进栈
+        PUSH DX                 ;秒进栈
+SHOW:   POP AX                  ;出栈
+        MOV [BX],AX             ;保存出栈值进STORE相应字单元
+        SUB BX,2                ;指向STORE下一待存储字单元
+        MOV AH,AL               ;有效压缩型BCD码时间在AL中，复制到AH
+        AND AH,0F0H             ;AH中取压缩型BCD码高位，还需调整为非压缩型BCD码
+        AND AL,0FH              ;AL中取压缩型BCD码低位，已经是非压缩型BCD码，无需调整
+        MOV CL,4                ;设移位次数4
+        ROL AH,CL               ;AH移位4次，变成非压缩型BCD码
+        ADD AH,30H              ;AH转换成ASCII码
+        ADD AL,30H              ;AL转换成ASCII码
+        MOV [DI],AH             ;AH移入TIME2中相应位置
+        MOV [DI+1],AL           ;AL移入TIME2中相应位置
+        SUB DI,3                ;指针减3，指向下个TIME2中待移入位置
+        MOV CX,SHOWN            ;移入当时显示循环次数
+        DEC SHOWN               ;显示循环次数-1
+        LOOP SHOW               ;显示循环次数不为0则循环，否则继续
+        MOV SHOWN,3             ;恢复显示时循环次数3
+        LEA DI,TIME2            ;令DI指回TIME2偏移地址
+        ADD BX,2                
+        PUSH [BX]               ;STORE中小时进栈
+        ADD BX,2
+        PUSH [BX]               ;STORE中分钟进栈
+        ADD BX,2
+        PUSH [BX]               ;STORE中秒进栈，字符串TIME2输入部分完毕
+        LEA DX,TIME2            ;取TIME2偏移地址
+        MOV AH,9
+        INT 21H                 ;显示时间完毕 
+        MOV AL,0
+        MOV AH,06               ;开始判别是否有键盘摁下
+        MOV DL,0FFH
+        INT 21H
+        JNZ EXIT                ;摁下则跳转，否则继续
+        JMP AGAIN
+EXIT:   MOV AH,4CH
+        INT 21H                 ;返回DOS  
+DELAY   PROC
+        PUSH AX                 ;延时过程定义开始
+        PUSH CX
+        MOV CX,600
+        L:PUSH CX
+        MOV CX,0FFFFH
+GOON:   DEC CX
+        JNE GOON
+        POP CX
+        LOOP L
+        POP AX
+        POP CX
+        RET
+DELAY   ENDP                         ;延时过程定义完毕
+ERROR   PROC
+        LEA DX,ERRORW           ;取ERRORW偏移地址
+        MOV AH,9
+        INT 21H 
+        RET
+ERROR   ENDP
+CODE    ENDS
+        END START

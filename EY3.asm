@@ -6,7 +6,7 @@ io8253a		equ ioport+283h
 io8253b		equ ioport+280h
 code segment
 	assume  cs:code
-start: mov al,10h       ;设置8253通道0为工作方式2,二进制计数
+start: mov al,10h       ;设置8253通道0为工作方式0,二进制计数
 	 mov dx,io8253a		;dx存入的是控制寄存器的地址
 	 out dx,al			;将控制字写入控制寄存器
 	 mov dx,io8253b      ;送计数初值为0FH，dx存入的是计数器0的地址
